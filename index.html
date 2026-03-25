@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>4UserLab — Deep Scan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --abyss:     #010c16;
+      --deep:      #03121f;
+      --mid:       #051e3
+      --surface:   #083050;
+      --glow:      #00ccff;
+      --glow2:     #00ffe5;
+      --dim:       #0077aa;
+      --text:      #bcdff5;
+      --muted:     #3d7a9a;
+      --card:      rgba(3,18,31,0.9);
+      --border:    rgba(0,180,230,0.13);
+      --green:     #00ffb3;
+      --orange:    #ffb347;
+      --red:       #ff5e7d;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Space Mono', monospace;
+      background: var(--abyss);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Ocean gradient layers */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 100% 55% at 50% -5%, rgba(0,120,200,0.15) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 50% at 5%  85%, rgba(0,60,130,0.10) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 45% at 95% 95%, rgba(0,40,100,0.08) 0%, transparent 55%);
+      pointer-events: none;
+    }
+
+    /* Subtle scan-line texture */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+      pointer-events: none;
+    }
+
+    .bubbles { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+    .bubble {
+      position: absolute; border-radius: 50%;
+      background: rgba(0,200,255,0.04);
+      border: 1px solid rgba(0,200,255,0.08);
+      bottom: -80px;
+      animation: rise linear infinite;
+    }
+    @keyframes rise { to { transform: translateY(-115vh) translateX(15px); opacity: 0; } }
+
+    .wrapper { position: relative; z-index: 1; max-width: 880px; margin: 0 auto; padding: 52px 22px 100px; }
+
+    /* ── HEADER ── */
+    header { text-align: center; margin-bottom: 56px; }
+
+    .sonar-icon {
+      display: inline-block;
+      width: 60px; height: 60px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .sonar-icon svg { width: 100%; height: 100%; }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2.2rem, 6vw, 3.8rem);
+      letter-spacing: -0.03em;
+      line-height: 1;
+      background: linear-gradient(130deg, var(--glow) 20%, var(--glow2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .sub {
+      margin-top: 10px;
+      font-size: 0.72rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ── SEARCH ── */
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 5px 5px 5px 18px;
+      margin-bottom: 32px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      box-shadow: 0 2px 30px rgba(0,120,200,0.06);
+    }
+    .search-box:focus-within {
+      border-color: rgba(0,200,255,0.3);
+      box-shadow: 0 0 0 3px rgba(0,200,255,0.06), 0 2px 30px rgba(0,120,200,0.10);
+    }
+    .search-icon { color: var(--muted); font-size: 1rem; margin-right: 10px; flex-shrink: 0; }
+
+    #q {
+      flex: 1; background: transparent; border: none; outline: none;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.88rem; color: var(--text);
+      caret-color: var(--glow);
+      min-width: 0;
+    }
+    #q::placeholder { color: var(--muted); }
+
+    #btn {
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--dim) 0%, var(--surface) 100%);
+      border: 1px solid rgba(0,200,255,0.2);
+      border-radius: 9px;
+      color: var(--glow);
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      padding: 11px 24px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    #btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, var(--surface) 0%, #0d4a80 100%);
+      box-shadow: 0 0 20px rgba(0,200,255,0.18);
+    }
+    #btn:active:not(:disabled) { transform: scale(0.97); }
+    #btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── STATUS ── */
+    #status {
+      display: none;
+      align-items: center;
+      gap: 11px;
+      background: rgba(0,40,70,0.6);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 11px 16px;
+      margin-bottom: 26px;
+      font-size: 0.78rem;
+      color: var(--glow);
+    }
+    #status.on { display: flex; }
+    .ping {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--glow); flex-shrink: 0;
+      box-shadow: 0 0 0 0 rgba(0,200,255,0.5);
+      animation: ping 1.4s infinite;
+    }
+    @keyframes ping {
+      0%  { box-shadow: 0 0 0 0   rgba(0,200,255,0.5); }
+      70% { box-shadow: 0 0 0 9px rgba(0,200,255,0); }
+      100%{ box-shadow: 0 0 0 0   rgba(0,200,255,0); }
+    }
+    #statusMsg { flex: 1; }
+
+    /* ── STATS ROW ── */
+    #statsRow {
+      display: none;
+      gap: 12px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    #statsRow.on { display: flex; }
+    .stat-pill {
+      background: rgba(0,40,70,0.5);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 0.74rem;
+      color: var(--muted);
+    }
+    .stat-pill strong { color: var(--glow); font-family: 'Syne', sans-serif; }
+
+    /* ── CARDS ── */
+    #results { display: flex; flex-direction: column; gap: 16px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      padding: 22px 24px;
+      backdrop-filter: blur(10px);
+      animation: slideUp 0.4s ease forwards;
+      opacity: 0; transform: translateY(12px);
+      box-shadow: 0 6px 40px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.02);
+    }
+    @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+
+    .card-top {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 10px;
+      margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .site-link {
+      font-family: 'Syne', sans-serif; font-weight: 700;
+      font-size: 0.9rem; color: var(--glow);
+      text-decoration: none; word-break: break-all;
+    }
+    .site-link:hover { color: var(--glow2); }
+
+    .tags { display: flex; gap: 7px; flex-wrap: wrap; flex-shrink: 0; }
+    .tag {
+      font-size: 0.68rem; font-weight: 700;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      padding: 3px 9px; border-radius: 5px;
+    }
+    .tag-score  { background: rgba(0,200,255,0.08); border: 1px solid rgba(0,200,255,0.2);  color: var(--glow); }
+    .tag-high   { background: rgba(0,255,180,0.08); border: 1px solid rgba(0,255,180,0.22); color: var(--green); }
+    .tag-medium { background: rgba(255,180,70,0.08); border:1px solid rgba(255,180,70,0.22); color: var(--orange); }
+    .tag-low    { background: rgba(100,130,160,0.08);border:1px solid rgba(100,130,160,0.18);color: #7090b0; }
+    .tag-wa     { background: rgba(37,211,102,0.08); border:1px solid rgba(37,211,102,0.2); color: #25d366; }
+    .tag-none   { background: rgba(100,120,140,0.06);border:1px solid rgba(100,120,140,0.15);color: #556677; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    @media(max-width:500px){ .grid2 { grid-template-columns: 1fr; } }
+
+    .info label {
+      display: block; font-size: 0.66rem;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .info .v { font-size: 0.81rem; color: var(--text); line-height: 1.6; }
+
+    .chip {
+      display: inline-block;
+      background: rgba(0,200,255,0.07); border: 1px solid rgba(0,200,255,0.14);
+      border-radius: 4px; padding: 2px 8px;
+      font-size: 0.76rem; color: var(--glow);
+      margin: 2px 3px 2px 0;
+    }
+    .chip-ph {
+      background: rgba(0,200,100,0.07); border-color: rgba(0,200,100,0.14);
+      color: #50d8a0;
+    }
+
+    .summary {
+      border-top: 1px solid var(--border);
+      padding-top: 13px; margin-top: 2px;
+      font-size: 0.8rem; color: #7aafc8;
+      line-height: 1.75; font-style: italic;
+    }
+
+    .toggle {
+      background: none; border: none;
+      color: var(--muted); font-family: 'Space Mono', monospace;
+      font-size: 0.73rem; cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 0 0; transition: color 0.2s;
+    }
+    .toggle:hover { color: var(--glow); }
+    .arrow { display: inline-block; transition: transform 0.25s; }
+    .toggle.open .arrow { transform: rotate(180deg); }
+
+    .extra {
+      display: none; flex-direction: column; gap: 12px;
+      margin-top: 13px; border-top: 1px solid var(--border); padding-top: 13px;
+    }
+    .extra.open { display: flex; }
+
+    .listblock label {
+      font-size: 0.66rem; letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--muted); display: block; margin-bottom: 7px;
+    }
+    .listblock ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .listblock li {
+      font-size: 0.79rem; color: var(--text);
+      padding-left: 16px; position: relative; line-height: 1.55;
+    }
+    .listblock li::before { content: '›'; position: absolute; left: 0; color: var(--glow); }
+
+    .done {
+      text-align: center; padding: 40px 0 0;
+      font-size: 0.75rem; letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+    .done span { color: var(--glow2); font-family: 'Syne', sans-serif; font-weight: 700; }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--abyss); }
+    ::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="bubbles" id="bubbleWrap"></div>
+
+<div class="wrapper">
+
+  <header>
+    <div class="sonar-icon">
+      <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="30" cy="30" r="28" stroke="#00ccff" stroke-width="1.5" stroke-dasharray="5 3" opacity="0.6"/>
+        <circle cx="30" cy="30" r="18" stroke="#00ffe5" stroke-width="1" opacity="0.35"/>
+        <circle cx="30" cy="30" r="9"  stroke="#00ccff" stroke-width="1" opacity="0.5"/>
+        <circle cx="30" cy="30" r="3.5" fill="#00ccff"/>
+        <line x1="30" y1="2"  x2="30" y2="12" stroke="#00ccff" stroke-width="1.5"/>
+        <line x1="30" y1="48" x2="30" y2="58" stroke="#00ccff" stroke-width="1.5"/>
+        <line x1="2"  y1="30" x2="12" y2="30" stroke="#00ccff" stroke-width="1.5"/>
+        <line x1="48" y1="30" x2="58" y2="30" stroke="#00ccff" stroke-width="1.5"/>
+        <line x1="30" y1="30" x2="48" y2="14" stroke="#00ffe5" stroke-width="1" opacity="0.5"/>
+      </svg>
+    </div>
+    <h1>WZBOP</h1>
+    <p class="sub">Deep Sea Business Intelligence Scanner</p>
+  </header>
+
+  <div class="search-box">
+    <span class="search-icon">⌕</span>
+    <input id="q" type="text" placeholder="e.g.  plumbers in Alaska  ·  interior designers Lagos…" autocomplete="off"/>
+    <button id="btn" onclick="run()">SCAN</button>
+  </div>
+
+  <div id="status"><div class="ping"></div><span id="statusMsg">Initialising…</span></div>
+
+  <div id="statsRow">
+    <div class="stat-pill">Sites scanned: <strong id="cntScanned">0</strong></div>
+    <div class="stat-pill">With emails: <strong id="cntEmails">0</strong></div>
+    <div class="stat-pill">AI analysed: <strong id="cntAI">0</strong></div>
+  </div>
+
+  <div id="results"></div>
+</div>
+
+<script>
+  /* bubbles */
+  const bw = document.getElementById('bubbleWrap');
+  for (let i = 0; i < 24; i++) {
+    const b = document.createElement('div'); b.className = 'bubble';
+    const s = Math.random()*20+4;
+    b.style.cssText = `width:${s}px;height:${s}px;left:${Math.random()*100}%;animation-duration:${Math.random()*16+9}s;animation-delay:${Math.random()*14}s;opacity:${Math.random()*0.45+0.08}`;
+    bw.appendChild(b);
+  }
+
+  document.getElementById('q').addEventListener('keydown', e => e.key==='Enter' && run());
+
+  let cntScanned=0, cntEmails=0, cntAI=0;
+
+  function updStats() {
+    document.getElementById('cntScanned').textContent = cntScanned;
+    document.getElementById('cntEmails').textContent  = cntEmails;
+    document.getElementById('cntAI').textContent      = cntAI;
+  }
+
+  function run() {
+    const q = document.getElementById('q').value.trim();
+    if (!q) return;
+
+    // reset
+    document.getElementById('results').innerHTML = '';
+    cntScanned=0; cntEmails=0; cntAI=0; updStats();
+    document.getElementById('btn').disabled = true;
+
+    const status = document.getElementById('status');
+    const statsRow = document.getElementById('statsRow');
+    status.classList.add('on');
+    statsRow.classList.add('on');
+    setMsg('Launching scan…');
+
+    const es = new EventSource(`/api/search?q=${encodeURIComponent(q)}`);
+
+    es.onmessage = ev => {
+      const d = JSON.parse(ev.data);
+      if (d.type === 'status') {
+        setMsg(d.message);
+      } else if (d.type === 'count') {
+        document.getElementById('cntScanned').textContent = '0/' + d.total;
+      } else if (d.type === 'result') {
+        cntScanned++;
+        const total = document.getElementById('cntScanned').textContent.split('/')[1] || '';
+        document.getElementById('cntScanned').textContent = cntScanned + (total ? '/'+total : '');
+        if (d.emails.length)  cntEmails++;
+        if (d.score !== null) cntAI++;
+        updStats();
+        addCard(d);
+      } else if (d.type === 'done') {
+        status.classList.remove('on');
+        document.getElementById('btn').disabled = false;
+        es.close();
+        const done = document.createElement('p');
+        done.className = 'done';
+        done.innerHTML = `<span>Dive complete</span> — ${cntScanned} sites · ${cntEmails} with emails · ${cntAI} AI-analysed`;
+        document.getElementById('results').appendChild(done);
+      } else if (d.type === 'error') {
+        setMsg('⚠ ' + d.message);
+        status.classList.remove('on');
+        document.getElementById('btn').disabled = false;
+        es.close();
+      }
+    };
+
+    es.onerror = () => {
+      setMsg('Connection lost.');
+      status.classList.remove('on');
+      document.getElementById('btn').disabled = false;
+      es.close();
+    };
+  }
+
+  function setMsg(m) { document.getElementById('statusMsg').textContent = m; }
+
+  function addCard(d) {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const scoreBadge  = d.score  != null ? `<span class="tag tag-score">Score ${d.score}</span>` : '';
+    const intentBadge = d.intent ? `<span class="tag tag-${d.intent}">${d.intent} intent</span>` : '';
+    const waBadge     = d.whatsapp ? `<span class="tag tag-wa">WhatsApp</span>` : '';
+
+    const emailsHtml = d.emails.length
+      ? d.emails.map(e => `<span class="chip">${e}</span>`).join('')
+      : `<span style="color:var(--muted);font-size:.78rem">none found</span>`;
+
+    const phonesHtml = d.phones.length
+      ? d.phones.map(p => `<span class="chip chip-ph">${p}</span>`).join('')
+      : `<span style="color:var(--muted);font-size:.78rem">none found</span>`;
+
+    const summaryHtml = d.summary
+      ? `<div class="summary">${d.summary}</div>` : '';
+
+    const hasExtra = d.problems?.length || d.opportunities?.length;
+    const extraHtml = hasExtra ? `
+      <button class="toggle" onclick="toggleExtra(this)">
+        <span class="arrow">▾</span><span class="lbl">Show analysis details</span>
+      </button>
+      <div class="extra">
+        ${d.problems?.length ? `<div class="listblock"><label>Problems identified</label><ul>${d.problems.map(p=>`<li>${p}</li>`).join('')}</ul></div>` : ''}
+        ${d.opportunities?.length ? `<div class="listblock"><label>Opportunities</label><ul>${d.opportunities.map(o=>`<li>${o}</li>`).join('')}</ul></div>` : ''}
+      </div>` : '';
+
+    card.innerHTML = `
+      <div class="card-top">
+        <a class="site-link" href="${d.website}" target="_blank" rel="noopener">${d.website}</a>
+        <div class="tags">${scoreBadge}${intentBadge}${waBadge}</div>
+      </div>
+      <div class="grid2">
+        <div class="info"><label>Emails</label><div class="v">${emailsHtml}</div></div>
+        <div class="info"><label>Phone Numbers</label><div class="v">${phonesHtml}</div></div>
+      </div>
+      ${summaryHtml}${extraHtml}
+    `;
+    document.getElementById('results').appendChild(card);
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function toggleExtra(btn) {
+    btn.classList.toggle('open');
+    btn.nextElementSibling.classList.toggle('open');
+    btn.querySelector('.lbl').textContent = btn.classList.contains('open') ? 'Hide details' : 'Show analysis details';
+  }
+</script>
+</body>
+</html>
