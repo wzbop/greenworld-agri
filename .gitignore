@@ -5,7 +5,7 @@ results*.csv
 # Ignore environment and data files
 .env
 *.csv
-*.json
+
 analysis.json
 results*.csv
 results*.json
